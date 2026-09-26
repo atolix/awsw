@@ -16,6 +16,9 @@ type profileConfig struct {
 	Output      string
 	SSOStartURL string
 	SSOSession  string
+	SSORegion   string
+	AccountID   string
+	RoleName    string
 }
 
 type profileDetails struct {
@@ -25,6 +28,9 @@ type profileDetails struct {
 	AuthType    string
 	Current     bool
 	SSOStartURL string
+	SSORegion   string
+	AccountID   string
+	RoleName    string
 }
 
 func listProfiles() ([]profileDetails, error) {
@@ -62,6 +68,9 @@ func loadProfileDetails(name, currentProfile string, config map[string]profileCo
 		AuthType:    authType,
 		Current:     name == currentProfile,
 		SSOStartURL: values.SSOStartURL,
+		SSORegion:   values.SSORegion,
+		AccountID:   values.AccountID,
+		RoleName:    values.RoleName,
 	}
 }
 
@@ -130,6 +139,12 @@ func parseProfileConfig(input io.Reader) map[string]profileConfig {
 			config.SSOStartURL = value
 		case "sso_session":
 			config.SSOSession = value
+		case "sso_region":
+			config.SSORegion = value
+		case "sso_account_id":
+			config.AccountID = value
+		case "sso_role_name":
+			config.RoleName = value
 		}
 		profiles[current] = config
 	}

@@ -160,6 +160,12 @@ func profileDetailView(profile profileDetails, width, height int) string {
 		label.Render("Auth") + "    " + value.Render(profile.AuthType),
 		label.Render("Output") + "  " + value.Render(displayValue(profile.Output, "json")),
 	}
+	if profile.AccountID != "" {
+		lines = append(lines, label.Render("Account")+" "+value.Render(profile.AccountID))
+	}
+	if profile.RoleName != "" {
+		lines = append(lines, label.Render("Role")+"    "+value.Render(profile.RoleName))
+	}
 	if profile.SSOStartURL != "" {
 		lines = append(lines, label.Render("SSO")+"     "+value.Render(profile.SSOStartURL))
 	}

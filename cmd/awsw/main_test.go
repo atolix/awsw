@@ -38,6 +38,8 @@ output = json
 [profile awsw-sso]
 sso_start_url = https://example.awsapps.com/start
 sso_session = example
+sso_account_id = 123456789012
+sso_role_name = Developer
 region = us-west-2
 `))
 
@@ -46,5 +48,8 @@ region = us-west-2
 	}
 	if config["awsw-sso"].SSOStartURL == "" || config["awsw-sso"].SSOSession == "" {
 		t.Fatalf("SSO profile was not parsed: %#v", config["awsw-sso"])
+	}
+	if config["awsw-sso"].AccountID != "123456789012" || config["awsw-sso"].RoleName != "Developer" {
+		t.Fatalf("SSO identity was not parsed: %#v", config["awsw-sso"])
 	}
 }
