@@ -4,7 +4,7 @@ AWS profile switcher for bash and zsh.
 
 ## Requirements
 
-- Go 1.22 or later for development
+- Go 1.24.4 for development (managed by mise)
 - AWS CLI
 - An AWS profile configured in `~/.aws/config` or `~/.aws/credentials`
 
