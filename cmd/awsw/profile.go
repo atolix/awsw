@@ -1,13 +1,22 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
+
+type profileConfig struct {
+	Region      string
+	Output      string
+	SSOStartURL string
+	SSOSession  string
+}
 
 type profileDetails struct {
 	Name        string
@@ -29,39 +38,102 @@ func listProfiles() ([]profileDetails, error) {
 	}
 
 	currentProfile := os.Getenv("AWS_PROFILE")
+	config := readProfileConfig()
 	var profiles []profileDetails
 	for _, line := range strings.Split(string(output), "\n") {
 		if profile := strings.TrimSpace(line); profile != "" {
-			profiles = append(profiles, loadProfileDetails(profile, currentProfile))
+			profiles = append(profiles, loadProfileDetails(profile, currentProfile, config))
 		}
 	}
 	return profiles, nil
 }
 
-func loadProfileDetails(name, currentProfile string) profileDetails {
-	ssoStartURL := configureValue(name, "sso_start_url")
+func loadProfileDetails(name, currentProfile string, config map[string]profileConfig) profileDetails {
+	values := config[name]
 	authType := "credentials"
-	if ssoStartURL != "" || configureValue(name, "sso_session") != "" {
+	if values.SSOStartURL != "" || values.SSOSession != "" {
 		authType = "SSO"
 	}
 
 	return profileDetails{
 		Name:        name,
-		Region:      configureValue(name, "region"),
-		Output:      configureValue(name, "output"),
+		Region:      values.Region,
+		Output:      values.Output,
 		AuthType:    authType,
 		Current:     name == currentProfile,
-		SSOStartURL: ssoStartURL,
+		SSOStartURL: values.SSOStartURL,
 	}
 }
 
-func configureValue(profile, key string) string {
-	cmd := exec.Command("aws", "configure", "get", key, "--profile", profile)
-	output, err := cmd.Output()
-	if err != nil {
-		return ""
+func readProfileConfig() map[string]profileConfig {
+	path := os.Getenv("AWS_CONFIG_FILE")
+	if path == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return map[string]profileConfig{}
+		}
+		path = filepath.Join(home, ".aws", "config")
 	}
-	return strings.TrimSpace(string(output))
+
+	file, err := os.Open(path)
+	if err != nil {
+		return map[string]profileConfig{}
+	}
+	defer file.Close()
+	return parseProfileConfig(file)
+}
+
+func parseProfileConfig(input io.Reader) map[string]profileConfig {
+	profiles := make(map[string]profileConfig)
+	current := ""
+	scanner := bufio.NewScanner(input)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+			section := strings.TrimSpace(line[1 : len(line)-1])
+			switch {
+			case section == "default":
+				current = "default"
+			case strings.HasPrefix(section, "profile "):
+				current = strings.TrimSpace(strings.TrimPrefix(section, "profile "))
+			default:
+				current = ""
+			}
+			if current != "" {
+				if _, ok := profiles[current]; !ok {
+					profiles[current] = profileConfig{}
+				}
+			}
+			continue
+		}
+
+		if current == "" {
+			continue
+		}
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		config := profiles[current]
+		switch key {
+		case "region":
+			config.Region = value
+		case "output":
+			config.Output = value
+		case "sso_start_url":
+			config.SSOStartURL = value
+		case "sso_session":
+			config.SSOSession = value
+		}
+		profiles[current] = config
+	}
+	return profiles
 }
 
 func ensureAuthenticated(profile string, errOut io.Writer) error {

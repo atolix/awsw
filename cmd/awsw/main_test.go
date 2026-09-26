@@ -28,3 +28,23 @@ func TestProfileSelectorStartsWithFirstItem(t *testing.T) {
 		t.Fatalf("list view does not contain selected profile: %q", selector.list.View())
 	}
 }
+
+func TestParseProfileConfig(t *testing.T) {
+	config := parseProfileConfig(strings.NewReader(`
+[default]
+region = ap-northeast-1
+output = json
+
+[profile awsw-sso]
+sso_start_url = https://example.awsapps.com/start
+sso_session = example
+region = us-west-2
+`))
+
+	if config["default"].Region != "ap-northeast-1" {
+		t.Fatalf("default region = %q, want %q", config["default"].Region, "ap-northeast-1")
+	}
+	if config["awsw-sso"].SSOStartURL == "" || config["awsw-sso"].SSOSession == "" {
+		t.Fatalf("SSO profile was not parsed: %#v", config["awsw-sso"])
+	}
+}
