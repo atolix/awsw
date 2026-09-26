@@ -65,7 +65,7 @@ type profileSelector struct {
 
 func newProfileSelector(items []list.Item, delegate list.ItemDelegate, details []profileDetails) *profileSelector {
 	profiles := list.New(items, delegate, 120, 20)
-	profiles.Title = "AWS Profile"
+	profiles.SetShowTitle(false)
 	profiles.SetShowStatusBar(false)
 	profiles.SetShowPagination(false)
 	profiles.SetFilteringEnabled(true)
