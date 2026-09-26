@@ -53,3 +53,19 @@ region = us-west-2
 		t.Fatalf("SSO identity was not parsed: %#v", config["awsw-sso"])
 	}
 }
+
+func TestPrintShellIntegration(t *testing.T) {
+	var output strings.Builder
+	if err := printShellIntegration(&output, "zsh"); err != nil {
+		t.Fatalf("printShellIntegration returned an error: %v", err)
+	}
+	if !strings.Contains(output.String(), `profile="$(command awsw "$@")"`) {
+		t.Fatalf("shell integration does not call the binary: %q", output.String())
+	}
+}
+
+func TestPrintShellIntegrationRejectsUnknownShell(t *testing.T) {
+	if err := printShellIntegration(&strings.Builder{}, "fish"); err == nil {
+		t.Fatal("expected unsupported shell error")
+	}
+}

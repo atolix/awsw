@@ -8,22 +8,26 @@ AWS profile switcher for bash and zsh.
 - AWS CLI
 - An AWS profile configured in `~/.aws/config` or `~/.aws/credentials`
 
-## Build and install locally
+## Install
 
 ```sh
-go build -o awsw ./cmd/awsw
-mkdir -p ~/.local/bin
-cp awsw ~/.local/bin/awsw
+go install github.com/atolix/awsw/cmd/awsw@latest
 ```
 
-Make sure `~/.local/bin` is in your `PATH`.
+Make sure the Go binary install directory is in your `PATH`.
 
 ## Shell integration
 
-Add the following line to `~/.zshrc` or `~/.bashrc`:
+Add one line to `~/.zshrc`:
 
 ```sh
-source /absolute/path/to/awsw/awsw.sh
+eval "$(awsw init zsh)"
+```
+
+For bash, use:
+
+```sh
+eval "$(awsw init bash)"
 ```
 
 Reload the shell configuration:
