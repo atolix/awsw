@@ -1,30 +1,22 @@
 package main
 
 import (
-	"strings"
 	"testing"
+
+	"charm.land/bubbles/v2/list"
 )
 
-func TestSelectProfile(t *testing.T) {
-	profile, err := selectProfile(strings.NewReader("2\n"), &strings.Builder{}, []string{"dev", "staging"})
-	if err != nil {
-		t.Fatalf("selectProfile returned an error: %v", err)
-	}
-	if profile != "staging" {
-		t.Fatalf("selected profile = %q, want %q", profile, "staging")
+func TestProfileItemFilterValue(t *testing.T) {
+	item := profileItem("staging")
+	if item.FilterValue() != "staging" {
+		t.Fatalf("filter value = %q, want %q", item.FilterValue(), "staging")
 	}
 }
 
-func TestSelectProfileCancellation(t *testing.T) {
-	_, err := selectProfile(strings.NewReader("\n"), &strings.Builder{}, []string{"dev"})
-	if err != errCancelled {
-		t.Fatalf("error = %v, want cancellation", err)
-	}
-}
-
-func TestSelectProfileRejectsOutOfRange(t *testing.T) {
-	_, err := selectProfile(strings.NewReader("3\n"), &strings.Builder{}, []string{"dev", "staging"})
-	if err == nil {
-		t.Fatal("expected invalid selection error")
+func TestProfileSelectorStartsWithFirstItem(t *testing.T) {
+	selector := newProfileSelector([]list.Item{profileItem("dev")}, list.NewDefaultDelegate())
+	selected, ok := selector.list.SelectedItem().(profileItem)
+	if !ok || selected != profileItem("dev") {
+		t.Fatalf("selected item = %q, want %q", selected, "dev")
 	}
 }

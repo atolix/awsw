@@ -1,14 +1,15 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
-	"strconv"
 	"strings"
+
+	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
 )
 
 var errCancelled = errors.New("selection cancelled")
@@ -68,29 +69,79 @@ func listProfiles() ([]string, error) {
 }
 
 func selectProfile(in io.Reader, out io.Writer, profiles []string) (string, error) {
-	fmt.Fprintln(out, "AWS profiles:")
-	for i, profile := range profiles {
-		fmt.Fprintf(out, "  %d) %s\n", i+1, profile)
+	items := make([]list.Item, 0, len(profiles))
+	for _, profile := range profiles {
+		items = append(items, profileItem(profile))
 	}
-	fmt.Fprintf(out, "\nSelect profile [1-%d]: ", len(profiles))
 
-	scanner := bufio.NewScanner(in)
-	if !scanner.Scan() {
-		if err := scanner.Err(); err != nil {
-			return "", err
+	delegate := list.NewDefaultDelegate()
+	delegate.ShowDescription = false
+	selector := newProfileSelector(items, delegate)
+	program := tea.NewProgram(
+		selector,
+		tea.WithInput(in),
+		// stdout is reserved for the selected profile. Bubble Tea renders the
+		// interactive UI to stderr so shell command substitution stays safe.
+		tea.WithOutput(out),
+	)
+
+	finalModel, err := program.Run()
+	if err != nil {
+		return "", fmt.Errorf("profile selector failed: %w", err)
+	}
+	finalSelector, ok := finalModel.(*profileSelector)
+	if !ok || finalSelector.cancelled || finalSelector.selected == "" {
+		return "", errCancelled
+	}
+	return finalSelector.selected, nil
+}
+
+type profileItem string
+
+func (p profileItem) FilterValue() string {
+	return string(p)
+}
+
+type profileSelector struct {
+	list      list.Model
+	selected  string
+	cancelled bool
+}
+
+func newProfileSelector(items []list.Item, delegate list.ItemDelegate) *profileSelector {
+	profiles := list.New(items, delegate, 64, len(items)+8)
+	profiles.Title = "AWS Profile"
+	profiles.SetShowStatusBar(false)
+	profiles.SetShowPagination(false)
+	profiles.SetShowHelp(true)
+	return &profileSelector{list: profiles}
+}
+
+func (m *profileSelector) Init() tea.Cmd {
+	return nil
+}
+
+func (m *profileSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if key, ok := msg.(tea.KeyPressMsg); ok {
+		switch key.String() {
+		case "enter":
+			if selected, ok := m.list.SelectedItem().(profileItem); ok {
+				m.selected = string(selected)
+				return m, tea.Quit
+			}
+		case "esc", "ctrl+c":
+			m.cancelled = true
+			return m, tea.Quit
 		}
-		return "", errCancelled
 	}
 
-	selection := strings.TrimSpace(scanner.Text())
-	if selection == "" {
-		return "", errCancelled
-	}
-	index, err := strconv.Atoi(selection)
-	if err != nil || index < 1 || index > len(profiles) {
-		return "", fmt.Errorf("invalid selection %q", selection)
-	}
-	return profiles[index-1], nil
+	var cmd tea.Cmd
+	m.list, cmd = m.list.Update(msg)
+	return m, cmd
+}
+
+func (m *profileSelector) View() tea.View {
+	return tea.NewView(m.list.View())
 }
 
 func ensureAuthenticated(profile string, errOut io.Writer) error {

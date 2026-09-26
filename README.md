@@ -4,7 +4,7 @@ AWS profile switcher for bash and zsh.
 
 ## Requirements
 
-- Go 1.24.4 for development
+- Go 1.26 or later for development
 - AWS CLI
 - An AWS profile configured in `~/.aws/config` or `~/.aws/credentials`
 
@@ -39,6 +39,8 @@ Select a profile by number:
 ```sh
 awsw
 ```
+
+The selector supports arrow keys, `/` to filter profiles, `Enter` to select, and `Esc` or `Ctrl-C` to cancel.
 
 If the selected profile is an AWS SSO profile and its session is not valid, `awsw` runs `aws sso login` before switching profiles.
 
