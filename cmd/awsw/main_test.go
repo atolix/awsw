@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"charm.land/bubbles/v2/list"
@@ -18,5 +19,8 @@ func TestProfileSelectorStartsWithFirstItem(t *testing.T) {
 	selected, ok := selector.list.SelectedItem().(profileItem)
 	if !ok || selected != profileItem("dev") {
 		t.Fatalf("selected item = %q, want %q", selected, "dev")
+	}
+	if !strings.Contains(selector.list.View(), "dev") {
+		t.Fatalf("list view does not contain selected profile: %q", selector.list.View())
 	}
 }

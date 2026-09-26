@@ -42,6 +42,14 @@ func (p profileItem) FilterValue() string {
 	return string(p)
 }
 
+func (p profileItem) Title() string {
+	return string(p)
+}
+
+func (p profileItem) Description() string {
+	return ""
+}
+
 type profileSelector struct {
 	list      list.Model
 	selected  string
