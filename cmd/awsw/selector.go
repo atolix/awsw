@@ -14,7 +14,7 @@ func selectProfile(in io.Reader, out io.Writer, profiles []string) (string, erro
 		items = append(items, profileItem(profile))
 	}
 
-	delegate := list.NewDefaultDelegate()
+	delegate := newStyleDelegate()
 	delegate.ShowDescription = false
 	selector := newProfileSelector(items, delegate)
 	program := tea.NewProgram(
@@ -57,10 +57,11 @@ type profileSelector struct {
 }
 
 func newProfileSelector(items []list.Item, delegate list.ItemDelegate) *profileSelector {
-	profiles := list.New(items, delegate, 64, len(items)+8)
+	profiles := list.New(items, delegate, 120, 20)
 	profiles.Title = "AWS Profile"
 	profiles.SetShowStatusBar(false)
 	profiles.SetShowPagination(false)
+	profiles.SetFilteringEnabled(true)
 	profiles.SetShowHelp(true)
 	return &profileSelector{list: profiles}
 }
@@ -89,5 +90,7 @@ func (m *profileSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *profileSelector) View() tea.View {
-	return tea.NewView(m.list.View())
+	view := tea.NewView(m.list.View())
+	view.AltScreen = true
+	return view
 }
