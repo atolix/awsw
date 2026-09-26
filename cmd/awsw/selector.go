@@ -15,7 +15,7 @@ import (
 func selectProfile(in io.Reader, out io.Writer, profiles []profileDetails) (string, error) {
 	items := make([]list.Item, 0, len(profiles))
 	for _, profile := range profiles {
-		items = append(items, profileItem(profile.Name))
+		items = append(items, profileItem{name: profile.Name, current: profile.Current})
 	}
 
 	delegate := newStyleDelegate()
@@ -40,14 +40,17 @@ func selectProfile(in io.Reader, out io.Writer, profiles []profileDetails) (stri
 	return finalSelector.selected, nil
 }
 
-type profileItem string
+type profileItem struct {
+	name    string
+	current bool
+}
 
 func (p profileItem) FilterValue() string {
-	return string(p)
+	return p.name
 }
 
 func (p profileItem) Title() string {
-	return string(p)
+	return p.name
 }
 
 func (p profileItem) Description() string {
@@ -93,7 +96,7 @@ func (m *profileSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch key.String() {
 		case "enter":
 			if selected, ok := m.list.SelectedItem().(profileItem); ok {
-				m.selected = string(selected)
+				m.selected = selected.name
 				return m, tea.Quit
 			}
 		case "esc", "ctrl+c":
@@ -123,7 +126,7 @@ func (m *profileSelector) View() tea.View {
 
 func (m *profileSelector) selectedProfile() profileDetails {
 	if item, ok := m.list.SelectedItem().(profileItem); ok {
-		return m.profiles[string(item)]
+		return m.profiles[item.name]
 	}
 	return profileDetails{}
 }
@@ -149,10 +152,6 @@ func profileDetailView(profile profileDetails, width, height int) string {
 
 	label := lipgloss.NewStyle().Foreground(theme.Muted)
 	value := lipgloss.NewStyle().Foreground(theme.Text)
-	current := ""
-	if profile.Current {
-		current = lipgloss.NewStyle().Foreground(theme.Primary).Render("current")
-	}
 
 	lines := []string{
 		lipgloss.NewStyle().Bold(true).Foreground(theme.Primary).Render(profile.Name),
@@ -164,10 +163,6 @@ func profileDetailView(profile profileDetails, width, height int) string {
 	if profile.SSOStartURL != "" {
 		lines = append(lines, label.Render("SSO")+"     "+value.Render(profile.SSOStartURL))
 	}
-	if current != "" {
-		lines = append(lines, "", current)
-	}
-
 	return lipgloss.NewStyle().
 		Width(width).
 		Height(height).
