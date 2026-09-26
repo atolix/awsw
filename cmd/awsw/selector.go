@@ -166,6 +166,9 @@ func profileDetailView(profile profileDetails, width, height int) string {
 	if profile.RoleName != "" {
 		lines = append(lines, label.Render("Role")+"    "+value.Render(profile.RoleName))
 	}
+	if profile.SSORegion != "" {
+		lines = append(lines, label.Render("SSO Reg")+" "+value.Render(profile.SSORegion))
+	}
 	if profile.SSOStartURL != "" {
 		lines = append(lines, label.Render("SSO")+"     "+value.Render(profile.SSOStartURL))
 	}
