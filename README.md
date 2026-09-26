@@ -11,9 +11,9 @@ AWS profile switcher for bash and zsh.
 ## Build and install locally
 
 ```sh
-go build -o awsw-bin ./cmd/awsw-bin
+go build -o awsw ./cmd/awsw
 mkdir -p ~/.local/bin
-cp awsw-bin ~/.local/bin/awsw-bin
+cp awsw ~/.local/bin/awsw
 ```
 
 Make sure `~/.local/bin` is in your `PATH`.

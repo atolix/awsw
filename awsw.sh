@@ -1,4 +1,4 @@
-# Shell integration for awsw-bin.
+# Shell integration for awsw.
 # Source this file from ~/.zshrc or ~/.bashrc.
 awsw() {
   if [ "$1" = "--clear" ] || [ "$1" = "-c" ]; then
@@ -9,7 +9,7 @@ awsw() {
   fi
 
   local profile
-  profile="$(awsw-bin "$@")" || return $?
+  profile="$(command awsw "$@")" || return $?
 
   if [ -n "$profile" ]; then
     export AWS_PROFILE="$profile"
