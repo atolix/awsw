@@ -9,7 +9,16 @@ import (
 	"strings"
 )
 
-func listProfiles() ([]string, error) {
+type profileDetails struct {
+	Name        string
+	Region      string
+	Output      string
+	AuthType    string
+	Current     bool
+	SSOStartURL string
+}
+
+func listProfiles() ([]profileDetails, error) {
 	cmd := exec.Command("aws", "configure", "list-profiles")
 	output, err := cmd.Output()
 	if err != nil {
@@ -19,13 +28,40 @@ func listProfiles() ([]string, error) {
 		return nil, fmt.Errorf("could not list AWS profiles: %w", err)
 	}
 
-	var profiles []string
+	currentProfile := os.Getenv("AWS_PROFILE")
+	var profiles []profileDetails
 	for _, line := range strings.Split(string(output), "\n") {
 		if profile := strings.TrimSpace(line); profile != "" {
-			profiles = append(profiles, profile)
+			profiles = append(profiles, loadProfileDetails(profile, currentProfile))
 		}
 	}
 	return profiles, nil
+}
+
+func loadProfileDetails(name, currentProfile string) profileDetails {
+	ssoStartURL := configureValue(name, "sso_start_url")
+	authType := "credentials"
+	if ssoStartURL != "" || configureValue(name, "sso_session") != "" {
+		authType = "SSO"
+	}
+
+	return profileDetails{
+		Name:        name,
+		Region:      configureValue(name, "region"),
+		Output:      configureValue(name, "output"),
+		AuthType:    authType,
+		Current:     name == currentProfile,
+		SSOStartURL: ssoStartURL,
+	}
+}
+
+func configureValue(profile, key string) string {
+	cmd := exec.Command("aws", "configure", "get", key, "--profile", profile)
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
 }
 
 func ensureAuthenticated(profile string, errOut io.Writer) error {

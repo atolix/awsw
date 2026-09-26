@@ -3,20 +3,24 @@ package main
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+
+	"github.com/atolix/awsw/theme"
 )
 
-func selectProfile(in io.Reader, out io.Writer, profiles []string) (string, error) {
+func selectProfile(in io.Reader, out io.Writer, profiles []profileDetails) (string, error) {
 	items := make([]list.Item, 0, len(profiles))
 	for _, profile := range profiles {
-		items = append(items, profileItem(profile))
+		items = append(items, profileItem(profile.Name))
 	}
 
 	delegate := newStyleDelegate()
 	delegate.ShowDescription = false
-	selector := newProfileSelector(items, delegate)
+	selector := newProfileSelector(items, delegate, profiles)
 	program := tea.NewProgram(
 		selector,
 		tea.WithInput(in),
@@ -52,18 +56,26 @@ func (p profileItem) Description() string {
 
 type profileSelector struct {
 	list      list.Model
+	profiles  map[string]profileDetails
 	selected  string
 	cancelled bool
+	width     int
+	height    int
 }
 
-func newProfileSelector(items []list.Item, delegate list.ItemDelegate) *profileSelector {
+func newProfileSelector(items []list.Item, delegate list.ItemDelegate, details []profileDetails) *profileSelector {
 	profiles := list.New(items, delegate, 120, 20)
 	profiles.Title = "AWS Profile"
 	profiles.SetShowStatusBar(false)
 	profiles.SetShowPagination(false)
 	profiles.SetFilteringEnabled(true)
 	profiles.SetShowHelp(true)
-	return &profileSelector{list: profiles}
+
+	profileMap := make(map[string]profileDetails, len(details))
+	for _, detail := range details {
+		profileMap[detail.Name] = detail
+	}
+	return &profileSelector{list: profiles, profiles: profileMap}
 }
 
 func (m *profileSelector) Init() tea.Cmd {
@@ -71,6 +83,12 @@ func (m *profileSelector) Init() tea.Cmd {
 }
 
 func (m *profileSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if size, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width = size.Width
+		m.height = size.Height
+		m.list.SetSize(m.listWidth(), m.listHeight())
+	}
+
 	if key, ok := msg.(tea.KeyPressMsg); ok {
 		switch key.String() {
 		case "enter":
@@ -90,7 +108,78 @@ func (m *profileSelector) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *profileSelector) View() tea.View {
-	view := tea.NewView(m.list.View())
+	listWidth := m.listWidth()
+	detailWidth := m.width - listWidth - 3
+	if detailWidth < 30 {
+		detailWidth = 30
+	}
+
+	listView := lipgloss.NewStyle().Width(listWidth).Render(m.list.View())
+	detailView := profileDetailView(m.selectedProfile(), detailWidth, m.listHeight())
+	view := tea.NewView(lipgloss.JoinHorizontal(lipgloss.Top, listView, detailView))
 	view.AltScreen = true
 	return view
+}
+
+func (m *profileSelector) selectedProfile() profileDetails {
+	if item, ok := m.list.SelectedItem().(profileItem); ok {
+		return m.profiles[string(item)]
+	}
+	return profileDetails{}
+}
+
+func (m *profileSelector) listWidth() int {
+	if m.width <= 0 {
+		return 48
+	}
+	return m.width / 2
+}
+
+func (m *profileSelector) listHeight() int {
+	if m.height <= 0 {
+		return 20
+	}
+	return m.height
+}
+
+func profileDetailView(profile profileDetails, width, height int) string {
+	if profile.Name == "" {
+		return lipgloss.NewStyle().Width(width).Height(height).Render("")
+	}
+
+	label := lipgloss.NewStyle().Foreground(theme.Muted)
+	value := lipgloss.NewStyle().Foreground(theme.Text)
+	current := ""
+	if profile.Current {
+		current = lipgloss.NewStyle().Foreground(theme.Primary).Render("current")
+	}
+
+	lines := []string{
+		lipgloss.NewStyle().Bold(true).Foreground(theme.Primary).Render(profile.Name),
+		"",
+		label.Render("Region") + "  " + value.Render(displayValue(profile.Region, "not set")),
+		label.Render("Auth") + "    " + value.Render(profile.AuthType),
+		label.Render("Output") + "  " + value.Render(displayValue(profile.Output, "json")),
+	}
+	if profile.SSOStartURL != "" {
+		lines = append(lines, label.Render("SSO")+"     "+value.Render(profile.SSOStartURL))
+	}
+	if current != "" {
+		lines = append(lines, "", current)
+	}
+
+	return lipgloss.NewStyle().
+		Width(width).
+		Height(height).
+		Padding(1, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(theme.Border).
+		Render(strings.Join(lines, "\n"))
+}
+
+func displayValue(value, fallback string) string {
+	if value == "" {
+		return fallback
+	}
+	return value
 }

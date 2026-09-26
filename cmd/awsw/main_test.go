@@ -15,7 +15,11 @@ func TestProfileItemFilterValue(t *testing.T) {
 }
 
 func TestProfileSelectorStartsWithFirstItem(t *testing.T) {
-	selector := newProfileSelector([]list.Item{profileItem("dev")}, list.NewDefaultDelegate())
+	selector := newProfileSelector(
+		[]list.Item{profileItem("dev")},
+		list.NewDefaultDelegate(),
+		[]profileDetails{{Name: "dev", Region: "ap-northeast-1", AuthType: "credentials"}},
+	)
 	selected, ok := selector.list.SelectedItem().(profileItem)
 	if !ok || selected != profileItem("dev") {
 		t.Fatalf("selected item = %q, want %q", selected, "dev")
