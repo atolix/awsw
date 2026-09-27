@@ -69,3 +69,37 @@ func TestPrintShellIntegrationRejectsUnknownShell(t *testing.T) {
 		t.Fatal("expected unsupported shell error")
 	}
 }
+
+func TestLoadProfileDetailsAuthType(t *testing.T) {
+	config := map[string]profileConfig{
+		"legacy-sso":  {SSOStartURL: "https://example.awsapps.com/start"},
+		"session-sso": {SSOSession: "example"},
+		"static":      {Region: "ap-northeast-1"},
+	}
+
+	tests := map[string]string{
+		"legacy-sso":  authTypeSSO,
+		"session-sso": authTypeSSO,
+		"static":      authTypeCredentials,
+		"missing":     authTypeCredentials,
+	}
+	for name, want := range tests {
+		if got := loadProfileDetails(name, "", config).AuthType; got != want {
+			t.Errorf("%s: auth type = %q, want %q", name, got, want)
+		}
+	}
+}
+
+func TestFindProfile(t *testing.T) {
+	profiles := []profileDetails{
+		{Name: "dev", AuthType: authTypeCredentials},
+		{Name: "prod", AuthType: authTypeSSO},
+	}
+
+	if got := findProfile(profiles, "prod"); got.AuthType != authTypeSSO {
+		t.Fatalf("findProfile(prod) = %#v, want SSO profile", got)
+	}
+	if got := findProfile(profiles, "unknown"); got.Name != "unknown" || got.AuthType != "" {
+		t.Fatalf("findProfile(unknown) = %#v, want bare profile", got)
+	}
+}
