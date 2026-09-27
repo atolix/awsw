@@ -47,11 +47,20 @@ func run(in io.Reader, out, errOut io.Writer) error {
 		return err
 	}
 
-	if err := ensureAuthenticated(profile, errOut); err != nil {
+	if err := ensureAuthenticated(findProfile(profiles, profile), errOut); err != nil {
 		return err
 	}
 
 	// stdout is intentionally reserved for the shell integration.
 	_, err = fmt.Fprintln(out, profile)
 	return err
+}
+
+func findProfile(profiles []profileDetails, name string) profileDetails {
+	for _, profile := range profiles {
+		if profile.Name == name {
+			return profile
+		}
+	}
+	return profileDetails{Name: name}
 }

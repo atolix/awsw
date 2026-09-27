@@ -21,6 +21,11 @@ type profileConfig struct {
 	RoleName    string
 }
 
+const (
+	authTypeCredentials = "credentials"
+	authTypeSSO         = "SSO"
+)
+
 type profileDetails struct {
 	Name        string
 	Region      string
@@ -56,9 +61,9 @@ func listProfiles() ([]profileDetails, error) {
 
 func loadProfileDetails(name, currentProfile string, config map[string]profileConfig) profileDetails {
 	values := config[name]
-	authType := "credentials"
+	authType := authTypeCredentials
 	if values.SSOStartURL != "" || values.SSOSession != "" {
-		authType = "SSO"
+		authType = authTypeSSO
 	}
 
 	return profileDetails{
@@ -151,14 +156,18 @@ func parseProfileConfig(input io.Reader) map[string]profileConfig {
 	return profiles
 }
 
-func ensureAuthenticated(profile string, errOut io.Writer) error {
+func ensureAuthenticated(details profileDetails, errOut io.Writer) error {
+	profile := details.Name
 	if commandSucceeds("aws", "sts", "get-caller-identity", "--profile", profile) {
 		return nil
 	}
 
 	// Only SSO profiles should trigger sso login. For other profiles, surface
 	// the authentication error instead of unexpectedly starting a login flow.
-	if !commandSucceeds("aws", "configure", "get", "sso_start_url", "--profile", profile) {
+	// The auth type comes from the parsed config so that profiles using
+	// sso_session (where sso_start_url lives in the sso-session section) are
+	// recognised as SSO too.
+	if details.AuthType != authTypeSSO {
 		return fmt.Errorf("AWS authentication failed for profile %q", profile)
 	}
 
