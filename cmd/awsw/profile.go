@@ -156,6 +156,13 @@ func parseProfileConfig(input io.Reader) map[string]profileConfig {
 	return profiles
 }
 
+// The AWS CLI invocations made while authenticating are package variables so
+// tests can drive ensureAuthenticated without a real aws binary.
+var (
+	commandSucceeds = runQuietly
+	runInteractive  = runAttached
+)
+
 func ensureAuthenticated(details profileDetails, errOut io.Writer) error {
 	profile := details.Name
 	if commandSucceeds("aws", "sts", "get-caller-identity", "--profile", profile) {
@@ -172,11 +179,7 @@ func ensureAuthenticated(details profileDetails, errOut io.Writer) error {
 	}
 
 	fmt.Fprintf(errOut, "Authentication required for profile %q. Starting AWS SSO login...\n", profile)
-	login := exec.Command("aws", "sso", "login", "--profile", profile)
-	login.Stdin = os.Stdin
-	login.Stdout = errOut
-	login.Stderr = errOut
-	if err := login.Run(); err != nil {
+	if err := runInteractive(errOut, "aws", "sso", "login", "--profile", profile); err != nil {
 		return fmt.Errorf("AWS SSO login failed for profile %q: %w", profile, err)
 	}
 
@@ -186,9 +189,21 @@ func ensureAuthenticated(details profileDetails, errOut io.Writer) error {
 	return nil
 }
 
-func commandSucceeds(name string, args ...string) bool {
+// runQuietly runs a command with its output discarded and reports whether it
+// exited successfully.
+func runQuietly(name string, args ...string) bool {
 	cmd := exec.Command(name, args...)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = io.Discard
 	return cmd.Run() == nil
+}
+
+// runAttached runs a command with the terminal's stdin attached and both
+// output streams sent to errOut, keeping stdout free for the shell integration.
+func runAttached(errOut io.Writer, name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = errOut
+	cmd.Stderr = errOut
+	return cmd.Run()
 }

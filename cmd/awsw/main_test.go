@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
@@ -148,5 +149,109 @@ func TestExitCode(t *testing.T) {
 	}
 	if code := exitCode(errors.New("boom"), &stderr); code != 1 || !strings.Contains(stderr.String(), "awsw: boom") {
 		t.Fatalf("exitCode(error) = %d with stderr %q, want 1 and message", code, stderr.String())
+	}
+}
+
+// fakeAWS replaces the aws invocations made by ensureAuthenticated. Each call
+// to get-caller-identity consumes the next entry of identity; login returns
+// loginErr.
+type fakeAWS struct {
+	identity []bool
+	loginErr error
+	calls    []string
+}
+
+func (f *fakeAWS) install(t *testing.T) {
+	t.Helper()
+	origSucceeds, origInteractive := commandSucceeds, runInteractive
+	commandSucceeds = func(name string, args ...string) bool {
+		f.calls = append(f.calls, strings.Join(append([]string{name}, args...), " "))
+		if len(f.identity) == 0 {
+			t.Fatalf("unexpected quiet command: %s %v", name, args)
+		}
+		result := f.identity[0]
+		f.identity = f.identity[1:]
+		return result
+	}
+	runInteractive = func(errOut io.Writer, name string, args ...string) error {
+		f.calls = append(f.calls, strings.Join(append([]string{name}, args...), " "))
+		return f.loginErr
+	}
+	t.Cleanup(func() {
+		commandSucceeds, runInteractive = origSucceeds, origInteractive
+	})
+}
+
+func TestEnsureAuthenticated(t *testing.T) {
+	sso := profileDetails{Name: "prod", AuthType: authTypeSSO}
+	static := profileDetails{Name: "dev", AuthType: authTypeCredentials}
+	login := "aws sso login --profile prod"
+
+	tests := []struct {
+		name      string
+		profile   profileDetails
+		aws       fakeAWS
+		wantErr   string
+		wantLogin bool
+	}{
+		{
+			name:    "already authenticated",
+			profile: sso,
+			aws:     fakeAWS{identity: []bool{true}},
+		},
+		{
+			name:    "credentials profile never logs in",
+			profile: static,
+			aws:     fakeAWS{identity: []bool{false}},
+			wantErr: `AWS authentication failed for profile "dev"`,
+		},
+		{
+			name:      "sso profile logs in and succeeds",
+			profile:   sso,
+			aws:       fakeAWS{identity: []bool{false, true}},
+			wantLogin: true,
+		},
+		{
+			name:      "sso login fails",
+			profile:   sso,
+			aws:       fakeAWS{identity: []bool{false}, loginErr: errors.New("exit status 1")},
+			wantErr:   `AWS SSO login failed for profile "prod"`,
+			wantLogin: true,
+		},
+		{
+			name:      "sso login succeeds but identity still fails",
+			profile:   sso,
+			aws:       fakeAWS{identity: []bool{false, false}},
+			wantErr:   `still unavailable for profile "prod"`,
+			wantLogin: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			aws := tt.aws
+			aws.install(t)
+
+			var stderr strings.Builder
+			err := ensureAuthenticated(tt.profile, &stderr)
+			if tt.wantErr == "" && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tt.wantErr)) {
+				t.Fatalf("error = %v, want it to contain %q", err, tt.wantErr)
+			}
+
+			gotLogin := false
+			for _, call := range aws.calls {
+				if call == login {
+					gotLogin = true
+				}
+			}
+			if gotLogin != tt.wantLogin {
+				t.Fatalf("login called = %v, want %v (calls: %v)", gotLogin, tt.wantLogin, aws.calls)
+			}
+			if tt.wantLogin && !strings.Contains(stderr.String(), "Starting AWS SSO login") {
+				t.Fatalf("stderr = %q, want login notice", stderr.String())
+			}
+		})
 	}
 }
