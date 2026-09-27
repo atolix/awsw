@@ -23,12 +23,10 @@ func main() {
 	}
 
 	if err := run(os.Stdin, os.Stdout, os.Stderr); err != nil {
-		if !errors.Is(err, errCancelled) {
-			fmt.Fprintf(os.Stderr, "awsw: %v\n", err)
-		}
 		if errors.Is(err, errCancelled) {
 			os.Exit(0)
 		}
+		fmt.Fprintf(os.Stderr, "awsw: %v\n", err)
 		os.Exit(1)
 	}
 }
