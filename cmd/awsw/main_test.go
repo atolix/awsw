@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -101,5 +102,51 @@ func TestFindProfile(t *testing.T) {
 	}
 	if got := findProfile(profiles, "unknown"); got.Name != "unknown" || got.AuthType != "" {
 		t.Fatalf("findProfile(unknown) = %#v, want bare profile", got)
+	}
+}
+
+func TestExecuteArguments(t *testing.T) {
+	tests := []struct {
+		name       string
+		args       []string
+		wantCode   int
+		wantStdout bool
+		wantStderr string
+	}{
+		{name: "help", args: []string{"--help"}, wantCode: 0, wantStderr: "usage: awsw"},
+		{name: "short help", args: []string{"-h"}, wantCode: 0, wantStderr: "usage: awsw"},
+		{name: "clear without shell integration", args: []string{"--clear"}, wantCode: 2, wantStderr: "shell integration"},
+		{name: "unknown argument", args: []string{"--bogus"}, wantCode: 2, wantStderr: `unknown argument "--bogus"`},
+		{name: "init without shell", args: []string{"init"}, wantCode: 2, wantStderr: "usage: awsw init"},
+		{name: "init unknown shell", args: []string{"init", "fish"}, wantCode: 2, wantStderr: "unsupported shell"},
+		{name: "init zsh", args: []string{"init", "zsh"}, wantCode: 0, wantStdout: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var stdout, stderr strings.Builder
+			code := execute(tt.args, strings.NewReader(""), &stdout, &stderr)
+			if code != tt.wantCode {
+				t.Fatalf("exit code = %d, want %d (stderr: %q)", code, tt.wantCode, stderr.String())
+			}
+			if (stdout.Len() > 0) != tt.wantStdout {
+				t.Fatalf("stdout written = %v, want %v: %q", stdout.Len() > 0, tt.wantStdout, stdout.String())
+			}
+			if tt.wantStderr != "" && !strings.Contains(stderr.String(), tt.wantStderr) {
+				t.Fatalf("stderr = %q, want it to contain %q", stderr.String(), tt.wantStderr)
+			}
+		})
+	}
+}
+
+func TestExitCode(t *testing.T) {
+	var stderr strings.Builder
+	if code := exitCode(nil, &stderr); code != 0 {
+		t.Fatalf("exitCode(nil) = %d, want 0", code)
+	}
+	if code := exitCode(errCancelled, &stderr); code != 0 || stderr.Len() != 0 {
+		t.Fatalf("exitCode(cancelled) = %d with stderr %q, want 0 and silence", code, stderr.String())
+	}
+	if code := exitCode(errors.New("boom"), &stderr); code != 1 || !strings.Contains(stderr.String(), "awsw: boom") {
+		t.Fatalf("exitCode(error) = %d with stderr %q, want 1 and message", code, stderr.String())
 	}
 }
